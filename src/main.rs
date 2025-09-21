@@ -4,7 +4,12 @@
 */
 use std::sync::{Arc, Mutex};
 
-use winit::{application::ApplicationHandler, event::WindowEvent, event_loop::{ActiveEventLoop, EventLoop}, window::{Window, WindowId}};
+use winit::{
+    application::ApplicationHandler,
+    event::WindowEvent,
+    event_loop::{ActiveEventLoop, EventLoop},
+    window::{Window, WindowId},
+};
 
 struct WgpuApp {
     /// 避免窗口被释放
@@ -24,7 +29,8 @@ struct WgpuAppHandler {
     app: Arc<Mutex<Option<WgpuApp>>>,
 }
 
-impl ApplicationHandler for WgpuAppHandler {fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+impl ApplicationHandler for WgpuAppHandler {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         // 修复点：正确检查 Option<WgpuApp> 的存在性
         let mut app_guard = self.app.lock().unwrap();
         if app_guard.is_some() {
