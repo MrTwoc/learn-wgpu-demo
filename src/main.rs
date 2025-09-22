@@ -31,42 +31,6 @@ impl WgpuApp {
             let width = (height as f32 * 1.6) as u32;
             let _ = window.request_inner_size(PhysicalSize::new(width, height));
         }
-
-        #[cfg(target_arch = "wasm32")]
-        {
-            use winit::platform::web::WindowExtWebSys;
-            let canvas = window.canvas().unwrap();
-
-            // 将 canvas 添加到当前网页中
-            web_sys::window()
-                .and_then(|win| win.document())
-                .map(|doc| {
-                    let _ = canvas.set_attribute("id", "winit-canvas");
-                    match doc.get_element_by_id("wgpu-app-container") {
-                        Some(dst) => {
-                            let _ = dst.append_child(canvas.as_ref());
-                        }
-                        None => {
-                            let container = doc.create_element("div").unwrap();
-                            let _ = container.set_attribute("id", "wgpu-app-container");
-                            let _ = container.append_child(canvas.as_ref());
-
-                            doc.body().map(|body| body.append_child(container.as_ref()));
-                        }
-                    };
-                })
-                .expect("无法将 canvas 添加到当前网页中");
-
-            // 确保画布可以获得焦点
-            // https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/tabindex
-            canvas.set_tab_index(0);
-
-            // 设置画布获得焦点时不显示高亮轮廓
-            let style = canvas.style();
-            style.set_property("outline", "none").unwrap();
-            canvas.focus().expect("画布无法获取焦点");
-        }
-
         // The instance is a handle to our GPU
         // BackendBit::PRIMARY => Vulkan + Metal + DX12 + Browser WebGPU
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
@@ -212,31 +176,9 @@ impl ApplicationHandler for WgpuAppHandler {
         let window_attributes = Window::default_attributes().with_title("tutorial2-surface");
 
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
-        cfg_if::cfg_if! {
-            if #[cfg(target_arch = "wasm32")] {
-                let app = self.app.clone();
-                let missed_resize = self.missed_resize.clone();
 
-                wasm_bindgen_futures::spawn_local(async move {
-                    let window_cloned = window.clone();
-
-                    let wgpu_app = WgpuApp::new(window).await;
-                    let mut app = app.lock();
-                    *app = Some(wgpu_app);
-
-                    // 如果错失了窗口大小变化事件，则补上
-                    if let Some(resize) = *missed_resize.lock() {
-                        app.as_mut().unwrap().set_window_resized(resize);
-                        window_cloned.request_redraw();
-                    }
-
-                });
-            } else {
-                let wgpu_app = pollster::block_on(WgpuApp::new(window));
-                self.app.lock().replace(wgpu_app);
-                // NOTE: 在非 web 端，不会错失窗口大小变化事件和请求重绘事件
-            }
-        }
+        let wgpu_app = pollster::block_on(WgpuApp::new(window));
+        self.app.lock().replace(wgpu_app);
     }
 
     fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
