@@ -2060,6 +2060,7 @@ dependencies = [
 name = "wgpu-demo"
 version = "0.1.0"
 dependencies = [
+ "cfg-if",
  "env_logger",
  "log",
  "parking_lot",
