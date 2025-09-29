@@ -9,3 +9,5 @@
 ## 运行项目
 ```bash
 cargo run
+```
+每个分支对应教程的章节，分支名称为 tutorialX ，X 为章节编号。
