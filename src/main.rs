@@ -8,8 +8,9 @@ use std::sync::Arc;
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
-    event::WindowEvent,
+    event::{ElementState, KeyEvent, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoop},
+    keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowId},
 };
 
@@ -22,6 +23,7 @@ struct WgpuApp {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     size_changed: bool,
+    clear_color: wgpu::Color,
 }
 
 impl WgpuApp {
@@ -67,6 +69,7 @@ impl WgpuApp {
             desired_maximum_frame_latency: 2,
         };
         surface.configure(&device, &config);
+        let clear_color = wgpu::Color::BLACK;
         Self {
             window,
             surface,
@@ -77,7 +80,20 @@ impl WgpuApp {
             // 以下两个参数，同上的size，没有在文章中提及
             size_changed: false,
             _adapter: adapter,
+            clear_color,
         }
+    }
+
+    fn keyboard_input(&mut self, event: &KeyEvent) -> bool {
+        if event.physical_key == PhysicalKey::Code(KeyCode::Space) {
+            self.clear_color = if event.state == ElementState::Released {
+                wgpu::Color::BLACK
+            } else {
+                wgpu::Color::WHITE
+            };
+            return true;
+        }
+        false
     }
 
     fn set_window_resized(&mut self, new_size: PhysicalSize<u32>) {
@@ -122,12 +138,7 @@ impl WgpuApp {
                     resolve_target: None,
                     depth_slice: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 255.,
-                            g: 255.,
-                            b: 0.0,
-                            a: 1.0,
-                        }),
+                        load: wgpu::LoadOp::Clear(self.clear_color),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -185,6 +196,9 @@ impl ApplicationHandler for WgpuAppHandler {
         let app = app.as_mut().unwrap();
         // 窗口事件
         match event {
+            WindowEvent::KeyboardInput { event, .. } => {
+                app.keyboard_input(&event);
+            }
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }
