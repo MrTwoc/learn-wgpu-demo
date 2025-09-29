@@ -2,17 +2,7 @@
     学习文章
     https://jinleili.github.io/learn-wgpu-zh/beginner/tutorial1-window#%E6%B7%BB%E5%8A%A0%E5%AF%B9-web-%E7%9A%84%E6%94%AF%E6%8C%81
 */
-// use parking_lot::Mutex;
-// use std::sync::Arc;
-// use winit::dpi::PhysicalSize;
-// use winit::event::{ElementState, KeyEvent};
-// use winit::keyboard::{KeyCode, PhysicalKey};
-// use winit::{
-//     application::ApplicationHandler,
-//     event::WindowEvent,
-//     event_loop::{ActiveEventLoop, EventLoop},
-//     window::{Window, WindowId},
-// };
+
 use parking_lot::Mutex;
 use std::sync::Arc;
 use winit::{
@@ -133,9 +123,9 @@ impl WgpuApp {
                     depth_slice: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
+                            r: 255.,
+                            g: 255.,
+                            b: 0.0,
                             a: 1.0,
                         }),
                         store: wgpu::StoreOp::Store,
