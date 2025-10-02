@@ -56,7 +56,7 @@ impl WgpuApp {
             .unwrap();
         let caps = surface.get_capabilities(&adapter);
 
-        // 这一段。。在文章中没有提及，翻了一下源码中，有这三行
+        // 这一段。。在第二章中没有提及，翻了一下源码中，有这三行
         let mut size = window.inner_size();
         size.width = size.width.max(1);
         size.height = size.height.max(1);
@@ -74,6 +74,7 @@ impl WgpuApp {
         surface.configure(&device, &config);
         let clear_color = wgpu::Color::BLACK;
 
+        // 第3章渲染管线内容
         let shader = device.create_shader_module(include_wgsl!("shader.wgsl"));
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -130,7 +131,7 @@ impl WgpuApp {
             queue,
             config,
             size,
-            // 以下两个参数，同上的size，没有在文章中提及
+            // 以下两个参数，同上的size，没有在第二章中提及
             size_changed: false,
             _adapter: adapter,
             clear_color,
