@@ -2,6 +2,7 @@ struct VertexOutput {
     @builtin(position) position: vec4f,
 };
 
+// 顶点着色器-入口
 @vertex
 fn vs_main(
     @builtin(vertex_index) in_vertex_index: u32,
@@ -13,6 +14,7 @@ fn vs_main(
     return out;
 }
 
+// 片元着色器-入口
 @fragment
 fn fs_main(
     in: VertexOutput
