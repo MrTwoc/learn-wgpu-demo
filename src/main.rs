@@ -51,6 +51,8 @@ impl WgpuApp {
                 label: None,
                 memory_hints: wgpu::MemoryHints::Performance,
                 trace: wgpu::Trace::Off,
+                // 项目依赖：wgpu 27.0.0 新增了实验性特征, 需要添加这一行
+                // experimental_features: wgpu::ExperimentalFeatures::disabled(),
             })
             .await
             .unwrap();
