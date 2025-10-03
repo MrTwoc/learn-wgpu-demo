@@ -14,7 +14,8 @@ fn vs_main(
     return out;
 }
 
-// 片元着色器-入口
+// 片元/片段着色器-入口
+// 这里问了下AI，才知道片元/片段着色器是同一种东西的不同翻译
 @fragment
 fn fs_main(
     in: VertexOutput
