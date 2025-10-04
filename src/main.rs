@@ -2,10 +2,9 @@
     学习文章
     https://jinleili.github.io/learn-wgpu-zh/beginner/tutorial1-window#%E6%B7%BB%E5%8A%A0%E5%AF%B9-web-%E7%9A%84%E6%94%AF%E6%8C%81
 */
-// 123
 use parking_lot::Mutex;
 use std::sync::Arc;
-use wgpu::include_wgsl;
+use wgpu::{include_wgsl, util::DeviceExt};
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
@@ -14,6 +13,61 @@ use winit::{
     keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowId},
 };
+
+// 第四章 缓冲区与索引
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct Vertex {
+    position: [f32; 3],
+    color: [f32; 3],
+}
+// 第四章 缓冲区与索引
+const VERTICES: &[Vertex] = &[
+    Vertex {
+        position: [-0.0868241, 0.49240386, 0.0],
+        color: [0.5, 0.0, 0.5],
+    }, // A
+    Vertex {
+        position: [-0.49513406, 0.06958647, 0.0],
+        color: [0.5, 0.0, 0.5],
+    }, // B
+    Vertex {
+        position: [-0.21918549, -0.44939706, 0.0],
+        color: [0.5, 0.0, 0.5],
+    }, // C
+    Vertex {
+        position: [0.35966998, -0.3473291, 0.0],
+        color: [0.5, 0.0, 0.5],
+    }, // D
+    Vertex {
+        position: [0.44147372, 0.2347359, 0.0],
+        color: [0.5, 0.0, 0.5],
+    }, // E
+];
+// 第四章 缓冲区与索引
+const INDICES: &[u16] = &[0, 1, 4, 1, 2, 4, 2, 3, 4];
+
+// 第四章 缓冲区与索引
+impl Vertex {
+    fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
+        wgpu::VertexBufferLayout {
+            array_stride: core::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: core::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+            ],
+        }
+    }
+}
 
 struct WgpuApp {
     window: Arc<Window>,
@@ -27,6 +81,11 @@ struct WgpuApp {
     clear_color: wgpu::Color,
     // 第3章渲染管线
     render_pipeline: wgpu::RenderPipeline,
+    // 第4章 缓冲区与索引
+    vertex_buffer: wgpu::Buffer,
+    num_vertices: u32,
+    index_buffer: wgpu::Buffer,
+    num_indices: u32,
 }
 
 impl WgpuApp {
@@ -85,6 +144,20 @@ impl WgpuApp {
                 push_constant_ranges: &[],
             });
 
+        // 第4章 缓冲区与索引
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(VERTICES),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(INDICES),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        let num_indices = INDICES.len() as u32;
+
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
@@ -92,7 +165,8 @@ impl WgpuApp {
                 module: &shader,
                 compilation_options: Default::default(),
                 entry_point: Some("vs_main"),
-                buffers: &[],
+                // 第4章 缓冲区与索引
+                buffers: &[Vertex::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -126,6 +200,9 @@ impl WgpuApp {
             cache: None,
         });
 
+        // 第四章 缓冲区与索引
+        let num_vertices = VERTICES.len() as u32;
+
         Self {
             window,
             surface,
@@ -133,12 +210,17 @@ impl WgpuApp {
             queue,
             config,
             size,
-            // 以下两个参数，同上的size，没有在第二章中提及
+            // 第二章-以下两个参数，同上的size，没有在第二章中提及
             size_changed: false,
             _adapter: adapter,
             clear_color,
             // 第三章-渲染管线
             render_pipeline,
+            // 第四章-缓冲区与索引
+            vertex_buffer,
+            num_vertices,
+            index_buffer,
+            num_indices,
         }
     }
 
@@ -209,7 +291,11 @@ impl WgpuApp {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.draw(0..3, 0..1);
+            // 第四章 缓冲区与索引
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            // render_pass.draw(0..self.num_vertices, 0..1);
+            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
         }
 
         self.queue.submit(Some(encoder.finish()));
