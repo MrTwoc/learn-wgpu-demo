@@ -14,4 +14,11 @@ wgpu = "26.0.0"
 cfg-if = "1.0"
 pollster = "0.4.0"  # 用于阻塞运行异步代码
 # 第四章依赖
-bytemuck = { version = "1.19", features = [ "derive" ] }
+# bytemuck = { version = "1.19", features = [ "derive" ] }
+bytemuck = { version = "1.22", features = [ "extern_crate_alloc", "min_const_generics" ] }
+# 第五章依赖
+anyhow = "1.0"
+[dependencies.image]
+version = "0.24"
+default-features = false
+features = ["png", "jpeg"]

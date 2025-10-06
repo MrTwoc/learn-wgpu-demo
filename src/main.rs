@@ -2,7 +2,6 @@
     学习文章
     https://jinleili.github.io/learn-wgpu-zh/beginner/tutorial1-window#%E6%B7%BB%E5%8A%A0%E5%AF%B9-web-%E7%9A%84%E6%94%AF%E6%8C%81
 */
-// 123
 use parking_lot::Mutex;
 use std::sync::Arc;
 use wgpu::{include_wgsl, util::DeviceExt};
@@ -14,35 +13,37 @@ use winit::{
     keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowId},
 };
+mod texture;
 
 // 第四章 缓冲区与索引
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
     position: [f32; 3],
-    color: [f32; 3],
+    tex_coords: [f32; 2],
 }
 // 第四章 缓冲区与索引
 const VERTICES: &[Vertex] = &[
+    // 修改后的
     Vertex {
         position: [-0.0868241, 0.49240386, 0.0],
-        color: [0.5, 0.0, 0.5],
+        tex_coords: [0.4131759, 0.00759614],
     }, // A
     Vertex {
         position: [-0.49513406, 0.06958647, 0.0],
-        color: [0.5, 0.0, 0.5],
+        tex_coords: [0.0048659444, 0.43041354],
     }, // B
     Vertex {
         position: [-0.21918549, -0.44939706, 0.0],
-        color: [0.5, 0.0, 0.5],
+        tex_coords: [0.28081453, 0.949397],
     }, // C
     Vertex {
         position: [0.35966998, -0.3473291, 0.0],
-        color: [0.5, 0.0, 0.5],
+        tex_coords: [0.85967, 0.84732914],
     }, // D
     Vertex {
         position: [0.44147372, 0.2347359, 0.0],
-        color: [0.5, 0.0, 0.5],
+        tex_coords: [0.9414737, 0.2652641],
     }, // E
 ];
 // 第四章 缓冲区与索引
@@ -63,7 +64,8 @@ impl Vertex {
                 wgpu::VertexAttribute {
                     offset: core::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
                     shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x3,
+                    // // 第五章-纹理和绑定组
+                    format: wgpu::VertexFormat::Float32x2,
                 },
             ],
         }
@@ -87,6 +89,9 @@ struct WgpuApp {
     num_vertices: u32,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
+    // 第五章-纹理和绑定组
+    diffuse_bind_group: wgpu::BindGroup,
+    diffuse_texture: texture::Texture,
 }
 
 impl WgpuApp {
@@ -96,6 +101,20 @@ impl WgpuApp {
             ..Default::default()
         });
         let surface = instance.create_surface(window.clone()).unwrap();
+
+        // 第五章-纹理和绑定组
+        let diffuse_bytes = include_bytes!("happy-tree.png");
+        // let diffuse_image = image::load_from_memory(diffuse_bytes).unwrap();
+        // let diffuse_rgba = diffuse_image.to_rgba8();
+        // 第五章-纹理和绑定组
+        // use image::GenericImageView;
+        // let dimensions = diffuse_image.dimensions();
+        // let texture_size = wgpu::Extent3d {
+        //     width: dimensions.0,
+        //     height: dimensions.1,
+        //     depth_or_array_layers: 1,
+        // };
+
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::default(),
@@ -136,15 +155,6 @@ impl WgpuApp {
         surface.configure(&device, &config);
         let clear_color = wgpu::Color::BLACK;
 
-        // 第3章渲染管线内容
-        let shader = device.create_shader_module(include_wgsl!("shader.wgsl"));
-        let render_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[],
-                push_constant_ranges: &[],
-            });
-
         // 第4章 缓冲区与索引
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
@@ -158,6 +168,58 @@ impl WgpuApp {
             usage: wgpu::BufferUsages::INDEX,
         });
         let num_indices = INDICES.len() as u32;
+
+        // 第五章-纹理和绑定组
+        let diffuse_texture =
+            texture::Texture::from_byts(&device, &queue, diffuse_bytes, "happy_tree.png").unwrap();
+
+        // 第五章-纹理和绑定组
+        let texture_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            multisampled: false,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                ],
+                label: Some("Texture_bind_group_layout"),
+            });
+
+        let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
+                },
+            ],
+            label: Some("diffuse_bind_group"),
+        });
+
+        // 第3章渲染管线内容
+        let shader = device.create_shader_module(include_wgsl!("shader.wgsl"));
+        let render_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Render Pipeline Layout"),
+                bind_group_layouts: &[&texture_bind_group_layout],
+                push_constant_ranges: &[],
+            });
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
@@ -222,6 +284,9 @@ impl WgpuApp {
             num_vertices,
             index_buffer,
             num_indices,
+            // 第五章-纹理和绑定组
+            diffuse_bind_group,
+            diffuse_texture,
         }
     }
 
@@ -292,6 +357,8 @@ impl WgpuApp {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
+            // 第五章-纹理和绑定组
+            render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
             // 第四章 缓冲区与索引
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
