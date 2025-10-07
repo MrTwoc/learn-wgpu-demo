@@ -10,7 +10,7 @@ use winit::{
     dpi::PhysicalSize,
     event::{ElementState, KeyEvent, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoop},
-    keyboard::{KeyCode, PhysicalKey},
+    keyboard::{Key, KeyCode, NamedKey, PhysicalKey},
     window::{Window, WindowId},
 };
 mod texture;
@@ -72,6 +72,142 @@ impl Vertex {
     }
 }
 
+struct Camera {
+    eye: glam::Vec3,
+    target: glam::Vec3,
+    up: glam::Vec3,
+    aspect: f32,
+    fovy: f32,
+    znear: f32,
+    zfar: f32,
+}
+
+impl Camera {
+    fn build_view_projection_matrix(&self) -> glam::Mat4 {
+        // 1.
+        let view = glam::Mat4::look_at_rh(self.eye, self.target, self.up);
+        // 2.
+        let proj =
+            glam::Mat4::perspective_rh(self.fovy.to_radians(), self.aspect, self.znear, self.zfar);
+
+        // 3.
+        proj * view
+    }
+}
+
+// 此属性标注数据的内存布局兼容 C-ABI，令其可用于着色器
+#[repr(C)]
+// derive 属性自动导入的这些 trait，令其可被存入缓冲区
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct CameraUniform {
+    // glam 的数据类型不能直接用于 bytemuck
+    // 需要先将 Matrix4 矩阵转为一个 4x4 的浮点数数组
+    view_proj: [[f32; 4]; 4],
+}
+
+impl CameraUniform {
+    fn new() -> Self {
+        Self {
+            view_proj: glam::Mat4::IDENTITY.to_cols_array_2d(),
+        }
+    }
+
+    fn update_view_proj(&mut self, camera: &Camera) {
+        self.view_proj = camera.build_view_projection_matrix().to_cols_array_2d();
+    }
+}
+
+struct CameraController {
+    speed: f32,
+    is_forward_pressed: bool,
+    is_backward_pressed: bool,
+    is_left_pressed: bool,
+    is_right_pressed: bool,
+    is_up_pressed: bool,
+    is_down_pressed: bool,
+}
+
+impl CameraController {
+    fn new(speed: f32) -> Self {
+        Self {
+            speed,
+            is_forward_pressed: false,
+            is_backward_pressed: false,
+            is_left_pressed: false,
+            is_right_pressed: false,
+            is_up_pressed: false,
+            is_down_pressed: false,
+        }
+    }
+
+    fn process_events(&mut self, event: &KeyEvent) -> bool {
+        let is_pressed = event.state == ElementState::Pressed;
+
+        // 处理逻辑键
+        match &event.logical_key {
+            Key::Named(NamedKey::Space) => {
+                self.is_up_pressed = is_pressed;
+                return true;
+            }
+            _ => {}
+        }
+
+        // 处理物理键
+        match &event.physical_key {
+            PhysicalKey::Code(KeyCode::ShiftLeft) => {
+                self.is_down_pressed = is_pressed;
+                true
+            }
+            PhysicalKey::Code(KeyCode::KeyW) | PhysicalKey::Code(KeyCode::ArrowUp) => {
+                self.is_forward_pressed = is_pressed;
+                true
+            }
+            PhysicalKey::Code(KeyCode::KeyA) | PhysicalKey::Code(KeyCode::ArrowLeft) => {
+                self.is_left_pressed = is_pressed;
+                true
+            }
+            PhysicalKey::Code(KeyCode::KeyS) | PhysicalKey::Code(KeyCode::ArrowDown) => {
+                self.is_backward_pressed = is_pressed;
+                true
+            }
+            PhysicalKey::Code(KeyCode::KeyD) | PhysicalKey::Code(KeyCode::ArrowRight) => {
+                self.is_right_pressed = is_pressed;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn update_camera(&self, camera: &mut Camera) {
+        let forward = camera.target - camera.eye;
+        let forward_norm = forward.normalize();
+        let forward_mag = forward.length();
+
+        // 防止摄像机离场景中心太近时出现问题
+        if self.is_forward_pressed && forward_mag > self.speed {
+            camera.eye += forward_norm * self.speed;
+        }
+        if self.is_backward_pressed {
+            camera.eye -= forward_norm * self.speed;
+        }
+
+        let right = forward_norm.cross(camera.up);
+
+        // 在按下前进或后退键时重做半径计算
+        let forward = camera.target - camera.eye;
+        let forward_mag = forward.length();
+
+        if self.is_right_pressed {
+            // 重新调整目标和眼睛之间的距离，以便其不发生变化。
+            // 因此，眼睛仍然位于目标和眼睛形成的圆圈上。
+            camera.eye = camera.target - (forward + right * self.speed).normalize() * forward_mag;
+        }
+        if self.is_left_pressed {
+            camera.eye = camera.target - (forward - right * self.speed).normalize() * forward_mag;
+        }
+    }
+}
+
 struct WgpuApp {
     window: Arc<Window>,
     surface: wgpu::Surface<'static>,
@@ -92,6 +228,11 @@ struct WgpuApp {
     // 第五章-纹理和绑定组
     diffuse_bind_group: wgpu::BindGroup,
     diffuse_texture: texture::Texture,
+    camera: Camera,
+    camera_uniform: CameraUniform,
+    camera_buffer: wgpu::Buffer,
+    camera_bind_group: wgpu::BindGroup,
+    camera_controller: CameraController,
 }
 
 impl WgpuApp {
@@ -214,10 +355,59 @@ impl WgpuApp {
 
         // 第3章渲染管线内容
         let shader = device.create_shader_module(include_wgsl!("shader.wgsl"));
+
+        // 第四章 缓冲区与索引
+        let num_vertices = VERTICES.len() as u32;
+
+        let camera = Camera {
+            // 将摄像机向上移动 1 个单位，向后移动 2 个单位
+            // +z 朝向屏幕外
+            eye: (0.0, 1.0, 2.0).into(),
+            // 摄像机看向原点
+            target: (0.0, 0.0, 0.0).into(),
+            // 定义哪个方向朝上
+            up: glam::Vec3::Y,
+            aspect: config.width as f32 / config.height as f32,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 100.0,
+        };
+        let mut camera_uniform = CameraUniform::new();
+        camera_uniform.update_view_proj(&camera);
+
+        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Camera Buffer"),
+            contents: bytemuck::cast_slice(&[camera_uniform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        let camera_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX, // 1
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false, // 2
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+                label: Some("camera_bind_group_layout"),
+            });
+
+        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &camera_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+            label: Some("camera_bind_group"),
+        });
+
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&texture_bind_group_layout],
+                bind_group_layouts: &[&texture_bind_group_layout, &camera_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -262,9 +452,7 @@ impl WgpuApp {
             multiview: None, // 5.
             cache: None,
         });
-
-        // 第四章 缓冲区与索引
-        let num_vertices = VERTICES.len() as u32;
+        let camera_controller = CameraController::new(0.1);
 
         Self {
             window,
@@ -287,19 +475,16 @@ impl WgpuApp {
             // 第五章-纹理和绑定组
             diffuse_bind_group,
             diffuse_texture,
+            camera,
+            camera_uniform,
+            camera_buffer,
+            camera_bind_group,
+            camera_controller,
         }
     }
 
     fn keyboard_input(&mut self, event: &KeyEvent) -> bool {
-        if event.physical_key == PhysicalKey::Code(KeyCode::Space) {
-            self.clear_color = if event.state == ElementState::Released {
-                wgpu::Color::BLACK
-            } else {
-                wgpu::Color::WHITE
-            };
-            return true;
-        }
-        false
+        self.camera_controller.process_events(event)
     }
 
     fn set_window_resized(&mut self, new_size: PhysicalSize<u32>) {
@@ -317,6 +502,15 @@ impl WgpuApp {
             self.surface.configure(&self.device, &self.config);
             self.size_changed = false;
         }
+    }
+    fn update(&mut self) {
+        self.camera_controller.update_camera(&mut self.camera);
+        self.camera_uniform.update_view_proj(&self.camera);
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::cast_slice(&[self.camera_uniform]),
+        );
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -357,12 +551,12 @@ impl WgpuApp {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            // 第五章-纹理和绑定组
             render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
-            // 第四章 缓冲区与索引
+            // 新添加!
+            render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            // render_pass.draw(0..self.num_vertices, 0..1);
+
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
         }
 
@@ -435,6 +629,9 @@ impl ApplicationHandler for WgpuAppHandler {
             WindowEvent::RedrawRequested => {
                 // surface 重绘事件
                 app.window.pre_present_notify();
+
+                // 第六章重点-更新相机
+                app.update();
 
                 match app.render() {
                     Ok(_) => {}
