@@ -630,7 +630,7 @@ impl ApplicationHandler for WgpuAppHandler {
                 // surface 重绘事件
                 app.window.pre_present_notify();
 
-                // 第六章重点-更新相机
+                // 第六章重点-更新相机，但文章中没有提及
                 app.update();
 
                 match app.render() {
