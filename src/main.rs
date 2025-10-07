@@ -217,7 +217,7 @@ struct WgpuApp {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     size_changed: bool,
-    clear_color: wgpu::Color,
+    // clear_color: wgpu::Color,
     // 第3章渲染管线
     render_pipeline: wgpu::RenderPipeline,
     // 第4章 缓冲区与索引
@@ -294,7 +294,7 @@ impl WgpuApp {
             desired_maximum_frame_latency: 2,
         };
         surface.configure(&device, &config);
-        let clear_color = wgpu::Color::BLACK;
+        // let clear_color = wgpu::Color::BLACK;
 
         // 第4章 缓冲区与索引
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -452,6 +452,7 @@ impl WgpuApp {
             multiview: None, // 5.
             cache: None,
         });
+        // 第六章-更新相机，传入speed：移动速度
         let camera_controller = CameraController::new(0.1);
 
         Self {
@@ -464,7 +465,7 @@ impl WgpuApp {
             // 第二章-以下两个参数，同上的size，没有在第二章中提及
             size_changed: false,
             _adapter: adapter,
-            clear_color,
+            // clear_color,
             // 第三章-渲染管线
             render_pipeline,
             // 第四章-缓冲区与索引
