@@ -15,6 +15,9 @@ use winit::{
 };
 mod texture;
 
+// FPS帧率统计
+use std::time::{Duration, Instant};
+
 // 第四章 缓冲区与索引
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -233,6 +236,11 @@ struct WgpuApp {
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     camera_controller: CameraController,
+    // 帧率统计
+    frame_count: u32,
+    last_fps_update: Instant,
+    last_frame_time: Instant,
+    fps: f32,
 }
 
 impl WgpuApp {
@@ -455,6 +463,9 @@ impl WgpuApp {
         // 第六章-更新相机，传入speed：移动速度
         let camera_controller = CameraController::new(0.1);
 
+        // 帧率统计
+        let now = Instant::now();
+
         Self {
             window,
             surface,
@@ -481,6 +492,11 @@ impl WgpuApp {
             camera_buffer,
             camera_bind_group,
             camera_controller,
+            // FPS计数器初始化
+            frame_count: 0,
+            last_fps_update: now,
+            last_frame_time: now,
+            fps: 0.0,
         }
     }
 
@@ -512,6 +528,18 @@ impl WgpuApp {
             0,
             bytemuck::cast_slice(&[self.camera_uniform]),
         );
+        // FPS计数器更新
+        self.frame_count += 1;
+        let now = Instant::now();
+
+        // 每秒更新一次FPS显示
+        if now.duration_since(self.last_fps_update) >= Duration::from_secs(1) {
+            self.fps = self.frame_count as f32;
+            self.frame_count = 0;
+            self.last_fps_update = now;
+        }
+
+        self.last_frame_time = now;
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -563,6 +591,10 @@ impl WgpuApp {
 
         self.queue.submit(Some(encoder.finish()));
         output.present();
+
+        // 更新窗口标题显示FPS
+        self.window
+            .set_title(&format!("demo2 - FPS: {:.0}", self.fps));
 
         Ok(())
     }
