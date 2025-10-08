@@ -528,18 +528,17 @@ impl WgpuApp {
             0,
             bytemuck::cast_slice(&[self.camera_uniform]),
         );
-        // FPS计数器更新
-        self.frame_count += 1;
+        // 每秒更新一次的FPS计算
         let now = Instant::now();
+        self.frame_count += 1;
 
-        // 每秒更新一次FPS显示
-        if now.duration_since(self.last_fps_update) >= Duration::from_secs(1) {
-            self.fps = self.frame_count as f32;
+        // 每秒计算一次FPS
+        let elapsed = now.duration_since(self.last_fps_update);
+        if elapsed.as_secs() >= 1 {
+            self.fps = self.frame_count as f32 / elapsed.as_secs_f32();
             self.frame_count = 0;
             self.last_fps_update = now;
         }
-
-        self.last_frame_time = now;
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -592,9 +591,12 @@ impl WgpuApp {
         self.queue.submit(Some(encoder.finish()));
         output.present();
 
-        // 更新窗口标题显示FPS
-        self.window
-            .set_title(&format!("demo2 - FPS: {:.0}", self.fps));
+        // 每秒更新一次窗口标题显示FPS（减少更新频率）
+        if self.frame_count == 0 {
+            // 只在FPS计算后更新标题
+            self.window
+                .set_title(&format!("tutorial6 - FPS: {:.0}", self.fps));
+        }
 
         Ok(())
     }
