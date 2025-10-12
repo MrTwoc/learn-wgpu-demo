@@ -521,7 +521,7 @@ impl WgpuApp {
             cache: None,
         });
         // 第六章-更新相机，传入speed：移动速度
-        let camera_controller = CameraController::new(0.1);
+        let camera_controller = CameraController::new(0.01);
 
         // 帧率统计
         let now = Instant::now();
