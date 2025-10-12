@@ -3,7 +3,7 @@
     https://jinleili.github.io/learn-wgpu-zh/beginner/tutorial1-window#%E6%B7%BB%E5%8A%A0%E5%AF%B9-web-%E7%9A%84%E6%94%AF%E6%8C%81
 */
 use parking_lot::Mutex;
-use std::sync::Arc;
+use std::{f32::consts, sync::Arc};
 use wgpu::{include_wgsl, util::DeviceExt};
 use winit::{
     application::ApplicationHandler,
@@ -14,7 +14,6 @@ use winit::{
     window::{Window, WindowId},
 };
 mod texture;
-// 创建第七章分支-
 
 // FPS帧率统计
 use std::time::{Duration, Instant};
@@ -212,6 +211,63 @@ impl CameraController {
     }
 }
 
+struct Instance {
+    position: glam::Vec3,
+    rotation: glam::Quat,
+}
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct InstanceRaw {
+    model: [[f32; 4]; 4],
+}
+// 第七章-新增!
+impl Instance {
+    fn to_raw(&self) -> InstanceRaw {
+        InstanceRaw {
+            model: (glam::Mat4::from_translation(self.position)
+                * glam::Mat4::from_quat(self.rotation))
+            .to_cols_array_2d(),
+        }
+    }
+}
+impl InstanceRaw {
+    fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
+        use core::mem;
+        wgpu::VertexBufferLayout {
+            array_stride: mem::size_of::<InstanceRaw>() as wgpu::BufferAddress,
+            // step_mode 的值需要从 Vertex 改为 Instance
+            // 这意味着只有着色器开始处理一次新实例化绘制时，才会使用下一个实例数据
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    // 虽然顶点着色器现在只使用了插槽 0 和 1，但在后面的教程中将会使用 2、3 和 4
+                    // 此处从插槽 5 开始，确保与后面的教程不会有冲突
+                    shader_location: 5,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                // mat4 从技术的角度来看是由 4 个 vec4 构成，占用 4 个插槽。
+                // 我们需要为每个 vec4 定义一个插槽，然后在着色器中重新组装出 mat4。
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
+                    shader_location: 6,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
+                    shader_location: 7,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 12]>() as wgpu::BufferAddress,
+                    shader_location: 8,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+            ],
+        }
+    }
+}
+
 struct WgpuApp {
     window: Arc<Window>,
     surface: wgpu::Surface<'static>,
@@ -242,6 +298,9 @@ struct WgpuApp {
     last_fps_update: Instant,
     last_frame_time: Instant,
     fps: f32,
+    // 第七章-新增!
+    instances: Vec<Instance>,
+    instance_buffer: wgpu::Buffer,
 }
 
 impl WgpuApp {
@@ -428,7 +487,7 @@ impl WgpuApp {
                 compilation_options: Default::default(),
                 entry_point: Some("vs_main"),
                 // 第4章 缓冲区与索引
-                buffers: &[Vertex::desc()],
+                buffers: &[Vertex::desc(), InstanceRaw::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -467,6 +526,41 @@ impl WgpuApp {
         // 帧率统计
         let now = Instant::now();
 
+        // 第七章-新增!
+        const NUM_INSTANCES_PER_ROW: u32 = 10;
+        const INSTANCE_DISPLACEMENT: glam::Vec3 = glam::Vec3::new(
+            NUM_INSTANCES_PER_ROW as f32 * 0.5,
+            0.0,
+            NUM_INSTANCES_PER_ROW as f32 * 0.5,
+        );
+        let instances = (0..NUM_INSTANCES_PER_ROW)
+            .flat_map(|z| {
+                (0..NUM_INSTANCES_PER_ROW).map(move |x| {
+                    let position = glam::Vec3 {
+                        x: x as f32,
+                        y: 0.0,
+                        z: z as f32,
+                    } - INSTANCE_DISPLACEMENT;
+
+                    let rotation = if position.length().abs() <= f32::EPSILON {
+                        // 这一行特殊确保在坐标 (0, 0, 0) 处的对象不会被缩放到 0
+                        // 因为错误的四元数会影响到缩放
+                        glam::Quat::from_axis_angle(glam::Vec3::Z, 0.0)
+                    } else {
+                        glam::Quat::from_axis_angle(position.normalize(), consts::FRAC_PI_4)
+                    };
+
+                    Instance { position, rotation }
+                })
+            })
+            .collect::<Vec<_>>();
+        let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
+        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Instance Buffer"),
+            contents: bytemuck::cast_slice(&instance_data),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
         Self {
             window,
             surface,
@@ -498,6 +592,8 @@ impl WgpuApp {
             last_fps_update: now,
             last_frame_time: now,
             fps: 0.0,
+            instances,
+            instance_buffer,
         }
     }
 
@@ -581,12 +677,14 @@ impl WgpuApp {
 
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
-            // 新添加!
             render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            // 新添加!
+            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+            // 更新!
+            render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as _);
         }
 
         self.queue.submit(Some(encoder.finish()));
@@ -596,7 +694,7 @@ impl WgpuApp {
         if self.frame_count == 0 {
             // 只在FPS计算后更新标题
             self.window
-                .set_title(&format!("tutorial6 - FPS: {:.0}", self.fps));
+                .set_title(&format!("tutorial7 - FPS: {:.0}", self.fps));
         }
 
         Ok(())
