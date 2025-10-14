@@ -1,7 +1,9 @@
 // 顶点着色器
 
 struct Camera {
-    view_proj: mat4x4f,
+    // 文章中使用的是 mat4x4f，这里改为了 mat4x4<f32>
+    // view_proj: mat4x4f
+    view_proj: mat4x4<f32>,
 }
 @group(1) @binding(0)
 var<uniform> camera: Camera;
@@ -27,7 +29,10 @@ fn vs_main(
     model: VertexInput,
     instance: InstanceInput,
 ) -> VertexOutput {
-    let model_matrix = mat4x4f(
+    // 第七章中：
+    //这里将 model_matrix 从文章中的 mat4x4f 改为了 mat4x4<f32>，也运行正常，也不报语法错误了
+    // let model_matrix = mat4x4f(
+    let model_matrix = mat4x4<f32>(
         instance.model_matrix_0,
         instance.model_matrix_1,
         instance.model_matrix_2,
