@@ -2,7 +2,7 @@
     学习文章
     https://jinleili.github.io/learn-wgpu-zh/beginner/tutorial1-window#%E6%B7%BB%E5%8A%A0%E5%AF%B9-web-%E7%9A%84%E6%94%AF%E6%8C%81
 */
-// 123
+
 use parking_lot::Mutex;
 use std::{f32::consts, sync::Arc};
 use wgpu::{include_wgsl, util::DeviceExt};
@@ -14,67 +14,71 @@ use winit::{
     keyboard::{Key, KeyCode, NamedKey, PhysicalKey},
     window::{Window, WindowId},
 };
+mod model;
+//第九章-模型加载
 mod texture;
+use model::Vertex;
+mod resources;
 
 // FPS帧率统计
 use std::time::{Duration, Instant};
 
 // 第四章 缓冲区与索引
-#[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct Vertex {
-    position: [f32; 3],
-    tex_coords: [f32; 2],
-}
+// #[repr(C)]
+// #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+// struct Vertex {
+//     position: [f32; 3],
+//     tex_coords: [f32; 2],
+// }
 // 第四章 缓冲区与索引
-const VERTICES: &[Vertex] = &[
-    // 修改后的
-    Vertex {
-        position: [-0.0868241, 0.49240386, 0.0],
-        tex_coords: [0.4131759, 0.00759614],
-    }, // A
-    Vertex {
-        position: [-0.49513406, 0.06958647, 0.0],
-        tex_coords: [0.0048659444, 0.43041354],
-    }, // B
-    Vertex {
-        position: [-0.21918549, -0.44939706, 0.0],
-        tex_coords: [0.28081453, 0.949397],
-    }, // C
-    Vertex {
-        position: [0.35966998, -0.3473291, 0.0],
-        tex_coords: [0.85967, 0.84732914],
-    }, // D
-    Vertex {
-        position: [0.44147372, 0.2347359, 0.0],
-        tex_coords: [0.9414737, 0.2652641],
-    }, // E
-];
-// 第四章 缓冲区与索引
-const INDICES: &[u16] = &[0, 1, 4, 1, 2, 4, 2, 3, 4];
+// const VERTICES: &[Vertex] = &[
+//     // 修改后的
+//     Vertex {
+//         position: [-0.0868241, 0.49240386, 0.0],
+//         tex_coords: [0.4131759, 0.00759614],
+//     }, // A
+//     Vertex {
+//         position: [-0.49513406, 0.06958647, 0.0],
+//         tex_coords: [0.0048659444, 0.43041354],
+//     }, // B
+//     Vertex {
+//         position: [-0.21918549, -0.44939706, 0.0],
+//         tex_coords: [0.28081453, 0.949397],
+//     }, // C
+//     Vertex {
+//         position: [0.35966998, -0.3473291, 0.0],
+//         tex_coords: [0.85967, 0.84732914],
+//     }, // D
+//     Vertex {
+//         position: [0.44147372, 0.2347359, 0.0],
+//         tex_coords: [0.9414737, 0.2652641],
+//     }, // E
+// ];
+// // 第四章 缓冲区与索引
+// const INDICES: &[u16] = &[0, 1, 4, 1, 2, 4, 2, 3, 4];
 
-// 第四章 缓冲区与索引
-impl Vertex {
-    fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
-        wgpu::VertexBufferLayout {
-            array_stride: core::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                wgpu::VertexAttribute {
-                    offset: core::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                    // // 第五章-纹理和绑定组
-                    format: wgpu::VertexFormat::Float32x2,
-                },
-            ],
-        }
-    }
-}
+// // 第四章 缓冲区与索引
+// impl Vertex {
+//     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
+//         wgpu::VertexBufferLayout {
+//             array_stride: core::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+//             step_mode: wgpu::VertexStepMode::Vertex,
+//             attributes: &[
+//                 wgpu::VertexAttribute {
+//                     offset: 0,
+//                     shader_location: 0,
+//                     format: wgpu::VertexFormat::Float32x3,
+//                 },
+//                 wgpu::VertexAttribute {
+//                     offset: core::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+//                     shader_location: 1,
+//                     // // 第五章-纹理和绑定组
+//                     format: wgpu::VertexFormat::Float32x2,
+//                 },
+//             ],
+//         }
+//     }
+// }
 
 struct Camera {
     eye: glam::Vec3,
@@ -297,10 +301,10 @@ struct WgpuApp {
     // 第3章渲染管线
     render_pipeline: wgpu::RenderPipeline,
     // 第4章 缓冲区与索引
-    vertex_buffer: wgpu::Buffer,
-    num_vertices: u32,
-    index_buffer: wgpu::Buffer,
-    num_indices: u32,
+    // vertex_buffer: wgpu::Buffer,
+    // num_vertices: u32,
+    // index_buffer: wgpu::Buffer,
+    // num_indices: u32,
     // 第五章-纹理和绑定组
     diffuse_bind_group: wgpu::BindGroup,
     diffuse_texture: texture::Texture,
@@ -319,6 +323,8 @@ struct WgpuApp {
     instance_buffer: wgpu::Buffer,
     // 第八章-深度缓冲区
     depth_texture: texture::Texture,
+    // 第九章-new
+    obj_model: model::Model,
 }
 
 impl WgpuApp {
@@ -383,22 +389,22 @@ impl WgpuApp {
         // let clear_color = wgpu::Color::BLACK;
 
         // 第4章 缓冲区与索引
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(VERTICES),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
+        // let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        //     label: Some("Vertex Buffer"),
+        //     contents: bytemuck::cast_slice(VERTICES),
+        //     usage: wgpu::BufferUsages::VERTEX,
+        // });
 
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(INDICES),
-            usage: wgpu::BufferUsages::INDEX,
-        });
-        let num_indices = INDICES.len() as u32;
+        // let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        //     label: Some("Index Buffer"),
+        //     contents: bytemuck::cast_slice(INDICES),
+        //     usage: wgpu::BufferUsages::INDEX,
+        // });
+        // let num_indices = INDICES.len() as u32;
 
         // 第五章-纹理和绑定组
         let diffuse_texture =
-            texture::Texture::from_byts(&device, &queue, diffuse_bytes, "happy_tree.png").unwrap();
+            texture::Texture::from_bytes(&device, &queue, diffuse_bytes, "happy_tree.png").unwrap();
 
         // 第五章-纹理和绑定组
         let texture_bind_group_layout =
@@ -443,7 +449,7 @@ impl WgpuApp {
         let shader = device.create_shader_module(include_wgsl!("shader.wgsl"));
 
         // 第四章 缓冲区与索引
-        let num_vertices = VERTICES.len() as u32;
+        // let num_vertices = VERTICES.len() as u32;
 
         let camera = Camera {
             // 将摄像机向上移动 1 个单位，向后移动 2 个单位
@@ -505,7 +511,8 @@ impl WgpuApp {
                 compilation_options: Default::default(),
                 entry_point: Some("vs_main"),
                 // 第4章 缓冲区与索引
-                buffers: &[Vertex::desc(), InstanceRaw::desc()],
+                // buffers: &[Vertex::desc(), InstanceRaw::desc()],
+                buffers: &[model::ModelVertex::desc(), InstanceRaw::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -558,18 +565,17 @@ impl WgpuApp {
             0.0,
             NUM_INSTANCES_PER_ROW as f32 * 0.5,
         );
+        // 第九章-new
+        const SPACE_BETWEEN: f32 = 3.0;
         let instances = (0..NUM_INSTANCES_PER_ROW)
             .flat_map(|z| {
                 (0..NUM_INSTANCES_PER_ROW).map(move |x| {
-                    let position = glam::Vec3 {
-                        x: x as f32,
-                        y: 0.0,
-                        z: z as f32,
-                    } - INSTANCE_DISPLACEMENT;
+                    let x = SPACE_BETWEEN * (x as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
+                    let z = SPACE_BETWEEN * (z as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
+
+                    let position = glam::Vec3 { x, y: 0.0, z };
 
                     let rotation = if position.length().abs() <= f32::EPSILON {
-                        // 这一行特殊确保在坐标 (0, 0, 0) 处的对象不会被缩放到 0
-                        // 因为错误的四元数会影响到缩放
                         glam::Quat::from_axis_angle(glam::Vec3::Z, 0.0)
                     } else {
                         glam::Quat::from_axis_angle(position.normalize(), consts::FRAC_PI_4)
@@ -590,6 +596,11 @@ impl WgpuApp {
         let depth_texture =
             texture::Texture::create_depth_texture(&device, &config, "depth_texture");
 
+        let obj_model =
+            resources::load_model("cube.obj", &device, &queue, &texture_bind_group_layout)
+                .await
+                .unwrap();
+
         Self {
             window,
             surface,
@@ -604,10 +615,10 @@ impl WgpuApp {
             // 第三章-渲染管线
             render_pipeline,
             // 第四章-缓冲区与索引
-            vertex_buffer,
-            num_vertices,
-            index_buffer,
-            num_indices,
+            // vertex_buffer,
+            // num_vertices,
+            // index_buffer,
+            // num_indices,
             // 第五章-纹理和绑定组
             diffuse_bind_group,
             diffuse_texture,
@@ -625,6 +636,8 @@ impl WgpuApp {
             instance_buffer,
             // 第八章-深度缓冲区
             depth_texture,
+            // 第九章-new
+            obj_model,
         }
     }
 
@@ -717,16 +730,14 @@ impl WgpuApp {
                 ..Default::default()
             });
 
+            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
             render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            // 新添加!
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
-            // 更新!
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as _);
+            use model::DrawModel;
+            render_pass
+                .draw_mesh_instanced(&self.obj_model.meshes[0], 0..self.instances.len() as u32);
         }
 
         self.queue.submit(Some(encoder.finish()));

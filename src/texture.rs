@@ -8,7 +8,7 @@ pub struct Texture {
     pub sampler: wgpu::Sampler,
 }
 impl Texture {
-    pub fn from_byts(
+    pub fn from_bytes(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         bytes: &[u8],
