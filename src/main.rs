@@ -23,6 +23,8 @@ mod resources;
 // FPS帧率统计
 use std::time::{Duration, Instant};
 
+use crate::model::DrawModel;
+
 // 第四章 缓冲区与索引
 // #[repr(C)]
 // #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -553,13 +555,14 @@ impl WgpuApp {
             cache: None,
         });
         // 第六章-更新相机，传入speed：移动速度
-        let camera_controller = CameraController::new(0.01);
+        let camera_controller = CameraController::new(0.1);
 
         // 帧率统计
         let now = Instant::now();
 
-        // 第七章-新增!
-        const NUM_INSTANCES_PER_ROW: u32 = 10;
+        // 第七章-新增! 实例化渲染
+        // NUM_INSTANCES_PER_ROW 实例化渲染的实例数量
+        const NUM_INSTANCES_PER_ROW: u32 = 100;
         const INSTANCE_DISPLACEMENT: glam::Vec3 = glam::Vec3::new(
             NUM_INSTANCES_PER_ROW as f32 * 0.5,
             0.0,
@@ -732,12 +735,11 @@ impl WgpuApp {
 
             render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
-            render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
-
-            use model::DrawModel;
-            render_pass
-                .draw_mesh_instanced(&self.obj_model.meshes[0], 0..self.instances.len() as u32);
+            render_pass.draw_model_instanced(
+                &self.obj_model,
+                0..self.instances.len() as u32,
+                &self.camera_bind_group,
+            );
         }
 
         self.queue.submit(Some(encoder.finish()));
