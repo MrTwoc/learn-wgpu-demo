@@ -268,6 +268,21 @@ impl InstanceRaw {
     }
 }
 
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum CompareFunction {
+    Undefined = 0,
+    Never = 1,
+    Less = 2,
+    Equal = 3,
+    LessEqual = 4,
+    Greater = 5,
+    NotEqual = 6,
+    GreaterEqual = 7,
+    Always = 8,
+}
+
 struct WgpuApp {
     window: Arc<Window>,
     surface: wgpu::Surface<'static>,
@@ -301,6 +316,8 @@ struct WgpuApp {
     // 第七章-新增!
     instances: Vec<Instance>,
     instance_buffer: wgpu::Buffer,
+    // 第八章-深度缓冲区
+    depth_texture: texture::Texture,
 }
 
 impl WgpuApp {
@@ -511,7 +528,14 @@ impl WgpuApp {
                 // 需要开启 Features::CONSERVATIVE_RASTERIZATION
                 conservative: false,
             },
-            depth_stencil: None, // 1.
+            // 第八章-深度缓冲区-new
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: texture::Texture::DEPTH_FORMAT,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less, // 1.
+                stencil: wgpu::StencilState::default(),     // 2.
+                bias: wgpu::DepthBiasState::default(),
+            }), // 1.
             multisample: wgpu::MultisampleState {
                 count: 1,                         // 2.
                 mask: !0,                         // 3.
@@ -561,6 +585,10 @@ impl WgpuApp {
             usage: wgpu::BufferUsages::VERTEX,
         });
 
+        // 第八章-深度缓冲区
+        let depth_texture =
+            texture::Texture::create_depth_texture(&device, &config, "depth_texture");
+
         Self {
             window,
             surface,
@@ -594,6 +622,8 @@ impl WgpuApp {
             fps: 0.0,
             instances,
             instance_buffer,
+            // 第八章-深度缓冲区
+            depth_texture,
         }
     }
 
@@ -615,6 +645,8 @@ impl WgpuApp {
             self.config.height = self.size.height;
             self.surface.configure(&self.device, &self.config);
             self.size_changed = false;
+            self.depth_texture =
+                texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
         }
     }
     fn update(&mut self) {
@@ -672,6 +704,15 @@ impl WgpuApp {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
+                // 第八章-深度缓冲区-new
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
                 ..Default::default()
             });
 
