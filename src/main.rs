@@ -562,7 +562,7 @@ impl WgpuApp {
 
         // 第七章-新增! 实例化渲染
         // NUM_INSTANCES_PER_ROW 实例化渲染的实例数量
-        const NUM_INSTANCES_PER_ROW: u32 = 100;
+        const NUM_INSTANCES_PER_ROW: u32 = 10;
         const INSTANCE_DISPLACEMENT: glam::Vec3 = glam::Vec3::new(
             NUM_INSTANCES_PER_ROW as f32 * 0.5,
             0.0,
