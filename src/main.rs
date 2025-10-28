@@ -25,63 +25,6 @@ use std::time::{Duration, Instant};
 
 use crate::model::DrawModel;
 
-// 第四章 缓冲区与索引
-// #[repr(C)]
-// #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-// struct Vertex {
-//     position: [f32; 3],
-//     tex_coords: [f32; 2],
-// }
-// 第四章 缓冲区与索引
-// const VERTICES: &[Vertex] = &[
-//     // 修改后的
-//     Vertex {
-//         position: [-0.0868241, 0.49240386, 0.0],
-//         tex_coords: [0.4131759, 0.00759614],
-//     }, // A
-//     Vertex {
-//         position: [-0.49513406, 0.06958647, 0.0],
-//         tex_coords: [0.0048659444, 0.43041354],
-//     }, // B
-//     Vertex {
-//         position: [-0.21918549, -0.44939706, 0.0],
-//         tex_coords: [0.28081453, 0.949397],
-//     }, // C
-//     Vertex {
-//         position: [0.35966998, -0.3473291, 0.0],
-//         tex_coords: [0.85967, 0.84732914],
-//     }, // D
-//     Vertex {
-//         position: [0.44147372, 0.2347359, 0.0],
-//         tex_coords: [0.9414737, 0.2652641],
-//     }, // E
-// ];
-// // 第四章 缓冲区与索引
-// const INDICES: &[u16] = &[0, 1, 4, 1, 2, 4, 2, 3, 4];
-
-// // 第四章 缓冲区与索引
-// impl Vertex {
-//     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
-//         wgpu::VertexBufferLayout {
-//             array_stride: core::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-//             step_mode: wgpu::VertexStepMode::Vertex,
-//             attributes: &[
-//                 wgpu::VertexAttribute {
-//                     offset: 0,
-//                     shader_location: 0,
-//                     format: wgpu::VertexFormat::Float32x3,
-//                 },
-//                 wgpu::VertexAttribute {
-//                     offset: core::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-//                     shader_location: 1,
-//                     // // 第五章-纹理和绑定组
-//                     format: wgpu::VertexFormat::Float32x2,
-//                 },
-//             ],
-//         }
-//     }
-// }
-
 struct Camera {
     eye: glam::Vec3,
     target: glam::Vec3,
@@ -339,16 +282,6 @@ impl WgpuApp {
 
         // 第五章-纹理和绑定组
         let diffuse_bytes = include_bytes!("happy-tree.png");
-        // let diffuse_image = image::load_from_memory(diffuse_bytes).unwrap();
-        // let diffuse_rgba = diffuse_image.to_rgba8();
-        // 第五章-纹理和绑定组
-        // use image::GenericImageView;
-        // let dimensions = diffuse_image.dimensions();
-        // let texture_size = wgpu::Extent3d {
-        //     width: dimensions.0,
-        //     height: dimensions.1,
-        //     depth_or_array_layers: 1,
-        // };
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -388,21 +321,6 @@ impl WgpuApp {
             desired_maximum_frame_latency: 2,
         };
         surface.configure(&device, &config);
-        // let clear_color = wgpu::Color::BLACK;
-
-        // 第4章 缓冲区与索引
-        // let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        //     label: Some("Vertex Buffer"),
-        //     contents: bytemuck::cast_slice(VERTICES),
-        //     usage: wgpu::BufferUsages::VERTEX,
-        // });
-
-        // let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        //     label: Some("Index Buffer"),
-        //     contents: bytemuck::cast_slice(INDICES),
-        //     usage: wgpu::BufferUsages::INDEX,
-        // });
-        // let num_indices = INDICES.len() as u32;
 
         // 第五章-纹理和绑定组
         let diffuse_texture =
